@@ -3,12 +3,8 @@
   "cleanUrls": true,
   "rewrites": [
     {
-      "source": "/assets/:path*",
-      "destination": "https://hauntingvoyagers.vercel.app/assets/:path*"
-    },
-    {
       "source": "/api/:path*",
-      "destination": "https://hauntingvoyagers.vercel.app/api/:path*"
+      "destination": "/api/:path*"
     }
   ]
 }
