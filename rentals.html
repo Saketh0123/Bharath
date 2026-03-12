@@ -459,9 +459,9 @@
         }
         @media (max-width:767px){
           .desktop-only {display:none !important;}
-          header nav { padding-top: 1.1rem !important; padding-bottom: 1.1rem !important; }
-          #site-logo { width: 3rem !important; height: 3rem !important; }
-          #site-company-name { font-size: 1.15rem !important; }
+          header nav { padding-top: 1.5rem !important; padding-bottom: 1.5rem !important; }
+          #site-logo { width: 3.5rem !important; height: 3.5rem !important; }
+          #site-company-name { font-size: 1.25rem !important; }
         }
         .nav-link {
           position: relative;
@@ -728,7 +728,7 @@
                 <!-- Logo and Company Name - Far Left -->
                 <div class="flex items-center gap-3 flex-shrink-0 brand-loading" id="brand-wrapper">
                     <img id="site-logo" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" alt="" class="h-12 w-12 rounded-full object-cover brand-logo-hidden" aria-hidden="true">
-                    <span id="site-company-name" class="text-xl font-bold bg-gradient-to-r from-orange-600 to-pink-600 bg-clip-text text-transparent whitespace-nowrap brand-name-placeholder" aria-live="polite"></span>
+                    <span id="site-company-name" class="text-xl font-bold bg-gradient-to-r from-orange-600 to-pink-600 bg-clip-text text-transparent whitespace-nowrap" aria-live="polite">BHARATH TRAVELS</span>
                 </div>
                 <!-- Desktop Navigation -->
                 <div id="desktop-nav" class="desktop-only flex-1 flex items-center justify-center gap-12">
@@ -837,18 +837,51 @@
                         return;
                     }
                     vehicles.sort((a,b)=> (a.displayOrder||0)-(b.displayOrder||0));
-                    grid.innerHTML = vehicles.map(v => `
-                        <div class=\"rounded-xl bg-white shadow-lg hover:shadow-2xl transition-all duration-300 card-hover overflow-hidden border\">
-                            <img src=\"${v.image}\" alt=\"${v.name}\" class=\"w-full h-56 object-cover\">
-                            <div class=\"p-6\">
-                                <h3 class=\"text-2xl font-bold mb-3 text-gray-900\">${v.name}</h3>
-                                <ul class=\"space-y-2 text-gray-600 mb-4\">${(v.features||[]).map(f=>`<li class=\\\"flex items-center gap-2\\\"><span class=\\\"check-icon text-xl\\\">✓</span> ${f}</li>`).join('')}</ul>
-                                <div class=\"flex justify-between items-center\">
-                                    <span class=\"text-2xl font-bold text-gray-900\">₹${v.pricePerKm}/km</span>
-                                    <button data-vehicle=\"${v.name}\" class=\"book-now-btn bg-gradient-to-r from-orange-500 to-pink-600 hover:from-orange-600 hover:to-pink-700 text-white px-6 py-2 rounded-full transition-all\">Book Now</button>
+                    grid.innerHTML = vehicles.map(v => {
+                        const type = v.vehicleType || 'bus';
+                        if (type === 'car') {
+                            // Car card: interactive hourly plan toggle
+                            const plans = v.plans || [];
+                            const firstPlan = plans[0] || {};
+                            const planBtnsHtml = plans.map((p, i) =>
+                                `<button onclick="switchCarPlan('${v._id}',${i})" class="plan-btn flex-1 px-3 py-2 border rounded-lg text-sm font-medium transition-all" data-vid="${v._id}" data-idx="${i}" style="${i===0?'background:#1e293b;color:#fff;border-color:#1e293b;':'background:#f1f5f9;color:#374151;border-color:#e2e8f0;'}">${p.km}km / ${p.hours}h</button>`
+                            ).join('');
+                            const carFeaturesHtml = (v.features||[]).length
+                                ? `<ul class="space-y-1 text-sm text-gray-600 mb-3">${(v.features).map(f=>`<li class="flex items-center gap-2"><span class="text-green-500 font-bold">✓</span> ${f}</li>`).join('')}</ul>` : '';
+                            const extrasHtml = (v.extraHourRate || v.extraKmRate)
+                                ? `<div class="flex justify-between text-sm text-gray-500 pt-3 border-t mb-4"><span>Extra Hour: ₹${v.extraHourRate||0}</span><span>Extra Km: ₹${v.extraKmRate||0}</span></div>` : '<div class="mb-4"></div>';
+                            const plansJson = JSON.stringify(plans).replace(/"/g,'&quot;');
+                            return `<div class="rounded-xl bg-white shadow-lg hover:shadow-2xl transition-all duration-300 card-hover overflow-hidden border" id="carcard-${v._id}" data-plans="${plansJson}">
+                                <img src="${v.image}" alt="${v.name}" class="w-full h-56 object-cover">
+                                <div class="p-6">
+                                    <h3 class="text-xl font-bold mb-3 text-gray-900">${v.name}</h3>
+                                    ${carFeaturesHtml}
+                                    <div class="flex gap-2 mb-4">${planBtnsHtml}</div>
+                                    <div class="text-center mb-3">
+                                        <div class="text-3xl font-bold text-gray-900" id="carprice-${v._id}">₹${firstPlan.price||''}</div>
+                                        <div class="text-sm text-gray-500" id="carhours-${v._id}">for ${firstPlan.hours||''} Hours</div>
+                                    </div>
+                                    ${extrasHtml}
+                                    <button data-vehicle="${v.name}" class="book-now-btn w-full bg-gradient-to-r from-orange-500 to-pink-600 hover:from-orange-600 hover:to-pink-700 text-white px-6 py-3 rounded-full flex items-center justify-center gap-2 transition-all">
+                                        <span>📞</span> Book Now
+                                    </button>
                                 </div>
-                            </div>
-                        </div>`).join('');
+                            </div>`;
+                        } else {
+                            // Bus card: per-km pricing with features
+                            return `<div class="rounded-xl bg-white shadow-lg hover:shadow-2xl transition-all duration-300 card-hover overflow-hidden border">
+                                <img src="${v.image}" alt="${v.name}" class="w-full h-56 object-cover">
+                                <div class="p-6">
+                                    <h3 class="text-2xl font-bold mb-3 text-gray-900">${v.name}</h3>
+                                    <ul class="space-y-2 text-gray-600 mb-4">${(v.features||[]).map(f=>`<li class="flex items-center gap-2"><span class="check-icon text-xl">✓</span> ${f}</li>`).join('')}</ul>
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-2xl font-bold text-gray-900">₹${v.pricePerKm}/km</span>
+                                        <button data-vehicle="${v.name}" class="book-now-btn bg-gradient-to-r from-orange-500 to-pink-600 hover:from-orange-600 hover:to-pink-700 text-white px-6 py-2 rounded-full transition-all">Book Now</button>
+                                    </div>
+                                </div>
+                            </div>`;
+                        }
+                    }).join('');
                     if (vehicleSelect) {
                         vehicleSelect.innerHTML = '<option value="">Select Vehicle Type</option>' + vehicles.map(v=>`<option value="${v.name}">${v.name}</option>`).join('');
                     }
@@ -857,6 +890,27 @@
                     console.error('Error loading vehicles', err);
                     grid.innerHTML = '<div class="col-span-3 text-center text-red-500">Error loading vehicles. Please try again later.</div>';
                 }
+            }
+
+            function switchCarPlan(vehicleId, planIndex) {
+                const card = document.getElementById('carcard-' + vehicleId);
+                if (!card) return;
+                let plans = [];
+                try { plans = JSON.parse(card.getAttribute('data-plans') || '[]'); } catch(e) {}
+                const plan = plans[planIndex];
+                if (!plan) return;
+                const priceEl = document.getElementById('carprice-' + vehicleId);
+                const hoursEl = document.getElementById('carhours-' + vehicleId);
+                if (priceEl) priceEl.textContent = '\u20b9' + plan.price;
+                if (hoursEl) hoursEl.textContent = 'for ' + plan.hours + ' Hours';
+                document.querySelectorAll('[data-vid="' + vehicleId + '"].plan-btn').forEach(btn => {
+                    const idx = parseInt(btn.getAttribute('data-idx'));
+                    if (idx === planIndex) {
+                        btn.style.background = '#1e293b'; btn.style.color = '#fff'; btn.style.borderColor = '#1e293b';
+                    } else {
+                        btn.style.background = '#f1f5f9'; btn.style.color = '#374151'; btn.style.borderColor = '#e2e8f0';
+                    }
+                });
             }
 
             function attachDynamicBookHandlers() {
@@ -914,8 +968,8 @@
         </div>
         
         <div class="relative z-10 text-center px-4 max-w-5xl mx-auto animate-fade-in">
-            <h2 class="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-1 bg-gradient-to-r from-yellow-300 to-orange-400 bg-clip-text text-transparent">P SQUARE HOLIDAYS</h2>
-            <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-2">Premium Bus & Tempo Rentals</h1>
+            <h2 class="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-1 bg-gradient-to-r from-yellow-300 to-orange-400 bg-clip-text text-transparent">BHARATH TRAVELLS</h2>
+            <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-2">Premium Car, Bus & Tempo Rentals</h1>
             <p class="text-base md:text-lg text-white/90 mb-4 max-w-2xl mx-auto">Comfortable, safe, and affordable vehicle rentals for all your travel needs</p>
             <div class="flex flex-wrap gap-3 justify-center">
                 <a href="#contact"><button class="bg-gradient-to-r from-orange-500 to-pink-600 hover:from-orange-600 hover:to-pink-700 text-white px-6 py-2.5 rounded-full font-semibold text-base shadow-xl transition-all">Book Now</button></a>
@@ -1234,8 +1288,8 @@
                     logo.removeAttribute('aria-hidden');
                 }
                 
-                if (companyName && settings.company.name) {
-                    companyName.textContent = settings.company.name;
+                if (companyName) {
+                    companyName.textContent = settings.company.name || 'BHARATH TRAVELS';
                     companyName.classList.remove('brand-name-placeholder');
                 }
                 
@@ -1496,7 +1550,11 @@
                     .forEach(vehicle => {
                         const option = document.createElement('option');
                         option.value = vehicle.name;
-                        option.textContent = `${vehicle.name} (${vehicle.seats} seats - ₹${vehicle.pricePerKm}/km)`;
+                        const vType = vehicle.vehicleType || 'bus';
+                        const priceLabel = vType === 'car' && vehicle.plans && vehicle.plans[0]
+                            ? `₹${vehicle.plans[0].price}/${vehicle.plans[0].hours}h`
+                            : `₹${vehicle.pricePerKm}/km`;
+                        option.textContent = `${vehicle.name} (${vehicle.seats} seats - ${priceLabel})`;
                         vehicleSelect.appendChild(option);
                     });
             } catch (error) {

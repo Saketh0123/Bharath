@@ -414,8 +414,40 @@ function openTravellModal() {
     document.getElementById('featuresInputs').innerHTML = '';
     document.getElementById('vehicleImagePreview').innerHTML = '';
     document.getElementById('vehicleActive').checked = true;
+    document.getElementById('vehicleType').value = 'bus';
+    document.getElementById('plansInputs').innerHTML = '';
+    document.getElementById('extraHourRate').value = 0;
+    document.getElementById('extraKmRate').value = 0;
+    toggleVehicleTypeFields();
     addFeature();
     document.getElementById('travellModal').classList.add('active');
+}
+
+function toggleVehicleTypeFields() {
+    const type = document.getElementById('vehicleType').value;
+    const carSection = document.getElementById('carPricingSection');
+    const pricePerKmGroup = document.getElementById('pricePerKmGroup');
+    if (type === 'car') {
+        carSection.style.display = 'block';
+        pricePerKmGroup.style.display = 'none';
+        if (document.getElementById('plansInputs').children.length === 0) addPlan();
+    } else {
+        carSection.style.display = 'none';
+        pricePerKmGroup.style.display = 'block';
+    }
+}
+
+function addPlan() {
+    const container = document.getElementById('plansInputs');
+    const div = document.createElement('div');
+    div.className = 'flex gap-2 items-center';
+    div.innerHTML = `
+        <input type="number" class="plan-km flex-1 px-3 py-2 border rounded-lg" placeholder="KM (e.g. 200)">
+        <input type="number" class="plan-hours flex-1 px-3 py-2 border rounded-lg" placeholder="Hours (e.g. 12)">
+        <input type="number" class="plan-price flex-1 px-3 py-2 border rounded-lg" placeholder="Price (e.g. 2000)">
+        <button type="button" onclick="this.parentElement.remove()" class="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600">✕</button>
+    `;
+    container.appendChild(div);
 }
 
 function closeTravellModal() {
@@ -548,20 +580,26 @@ async function loadTravells() {
             tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-500">No vehicles found</td></tr>';
             return;
         }
-        tbody.innerHTML = travells.map(travell => `
+        tbody.innerHTML = travells.map(travell => {
+            const type = travell.vehicleType || 'bus';
+            const pricingDisplay = type === 'car'
+                ? (travell.plans||[]).map(p=>`<div>${p.km}km/${p.hours}h = ₹${p.price}</div>`).join('') || 'No plans'
+                : `₹${travell.pricePerKm}/km`;
+            return `
             <tr>
                 <td>${travell.name}</td>
+                <td><span class="px-2 py-1 rounded text-xs ${type==='car'?'bg-blue-100 text-blue-800':'bg-yellow-100 text-yellow-800'}">${type==='car'?'Car':'Bus'}</span></td>
                 <td><img src="${travell.image}" alt="${travell.name}" class="h-12 w-20 object-cover rounded" /></td>
                 <td>${travell.seats}</td>
-                <td>₹${travell.pricePerKm}/km</td>
+                <td><div class="text-sm">${pricingDisplay}</div></td>
                 <td><div class="text-sm">${(travell.features||[]).slice(0,2).map(f=>`<div>• ${f}</div>`).join('')}${(travell.features||[]).length>2?`<div class="text-gray-500">+${travell.features.length-2} more</div>`:''}</div></td>
                 <td><span class="px-2 py-1 rounded text-xs ${travell.isActive? 'bg-green-100 text-green-800':'bg-gray-100 text-gray-800'}">${travell.isActive? 'Active':'Inactive'}</span></td>
                 <td>
                     <button onclick="editTravell('${travell._id}')" class="btn-edit">Edit</button>
                     <button onclick="deleteTravell('${travell._id}')" class="btn-delete ml-2">Delete</button>
                 </td>
-            </tr>
-        `).join('');
+            </tr>`;
+        }).join('');
     } catch (error) {
         console.error('Error loading travells:', error);
         document.getElementById('travellsTableBody').innerHTML = '<tr><td colspan="7" class="text-center py-8 text-red-500">Error loading vehicles</td></tr>';
@@ -576,9 +614,26 @@ async function editTravell(id) {
         document.getElementById('travellId').value = currentTravell._id;
         document.getElementById('vehicleName').value = currentTravell.name;
         document.getElementById('vehicleSeats').value = currentTravell.seats;
-        document.getElementById('vehiclePrice').value = currentTravell.pricePerKm;
+        document.getElementById('vehiclePrice').value = currentTravell.pricePerKm || 0;
         document.getElementById('vehicleOrder').value = currentTravell.displayOrder || 0;
         document.getElementById('vehicleActive').checked = currentTravell.isActive;
+        document.getElementById('vehicleType').value = currentTravell.vehicleType || 'bus';
+        document.getElementById('extraHourRate').value = currentTravell.extraHourRate || 0;
+        document.getElementById('extraKmRate').value = currentTravell.extraKmRate || 0;
+        const plansContainer = document.getElementById('plansInputs');
+        plansContainer.innerHTML = '';
+        (currentTravell.plans || []).forEach(p => {
+            const div = document.createElement('div');
+            div.className = 'flex gap-2 items-center';
+            div.innerHTML = `
+                <input type="number" class="plan-km flex-1 px-3 py-2 border rounded-lg" value="${p.km}">
+                <input type="number" class="plan-hours flex-1 px-3 py-2 border rounded-lg" value="${p.hours}">
+                <input type="number" class="plan-price flex-1 px-3 py-2 border rounded-lg" value="${p.price}">
+                <button type="button" onclick="this.parentElement.remove()" class="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600">✕</button>
+            `;
+            plansContainer.appendChild(div);
+        });
+        toggleVehicleTypeFields();
         vehicleImageUrl = currentTravell.image;
         document.getElementById('vehicleImagePreview').innerHTML = `
             <div class="relative inline-block">
@@ -618,12 +673,26 @@ document.getElementById('travellForm')?.addEventListener('submit', async (e) => 
     e.preventDefault();
     const name = document.getElementById('vehicleName').value.trim();
     const seats = parseInt(document.getElementById('vehicleSeats').value);
-    const pricePerKm = parseInt(document.getElementById('vehiclePrice').value);
+    const vehicleType = document.getElementById('vehicleType').value;
+    const pricePerKm = vehicleType === 'bus' ? parseInt(document.getElementById('vehiclePrice').value) || 0 : 0;
     const displayOrder = parseInt(document.getElementById('vehicleOrder').value) || 0;
     const isActive = document.getElementById('vehicleActive').checked;
     if (!vehicleImageUrl) { alert('Please upload or provide a vehicle image'); return; }
     const features = Array.from(document.querySelectorAll('.feature-input')).map(i=>i.value.trim()).filter(Boolean);
-    const data = { name, image: vehicleImageUrl, seats, pricePerKm, features, displayOrder, isActive };
+    let plans = [];
+    let extraHourRate = 0;
+    let extraKmRate = 0;
+    if (vehicleType === 'car') {
+        plans = Array.from(document.querySelectorAll('#plansInputs > div')).map(row => ({
+            km: parseInt(row.querySelector('.plan-km').value) || 0,
+            hours: parseInt(row.querySelector('.plan-hours').value) || 0,
+            price: parseInt(row.querySelector('.plan-price').value) || 0
+        })).filter(p => p.km > 0 && p.hours > 0 && p.price > 0);
+        extraHourRate = parseInt(document.getElementById('extraHourRate').value) || 0;
+        extraKmRate = parseInt(document.getElementById('extraKmRate').value) || 0;
+        if (plans.length === 0) { alert('Please add at least one pricing plan for cars'); return; }
+    }
+    const data = { name, image: vehicleImageUrl, seats, vehicleType, pricePerKm, plans, extraHourRate, extraKmRate, features, displayOrder, isActive };
     try {
         const id = document.getElementById('travellId').value;
         const url = id ? `${API_URL}/travells/${id}` : `${API_URL}/travells`;
@@ -1991,9 +2060,69 @@ async function loadHomeSettings() {
         document.getElementById('copyrightText').value = homeSettings.footer?.copyright || '';
         document.getElementById('developerCredit').value = homeSettings.footer?.developerCredit || '';
         document.getElementById('developerLink').value = homeSettings.footer?.developerLink || '';
+
+        // Populate bill header image
+        const billHeaderUrl = homeSettings.billHeaderImage || '';
+        document.getElementById('billHeaderImageUrl').value = billHeaderUrl;
+        const preview = document.getElementById('billHeaderImagePreview');
+        const previewImg = document.getElementById('billHeaderPreviewImg');
+        if (billHeaderUrl) {
+            previewImg.src = billHeaderUrl;
+            preview.classList.remove('hidden');
+        } else {
+            preview.classList.add('hidden');
+        }
     } catch (error) {
         console.error('Error loading home settings:', error);
         alert('Error loading settings. Please make sure the server is running.');
+    }
+}
+
+async function saveBillHeaderImage() {
+    const url = document.getElementById('billHeaderImageUrl').value.trim();
+    if (!url) { alert('Please enter or upload an image first.'); return; }
+    try {
+        const res = await fetch(`${API_URL}/settings`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ billHeaderImage: url })
+        });
+        if (res.ok) {
+            homeSettings.billHeaderImage = url;
+            const previewImg = document.getElementById('billHeaderPreviewImg');
+            previewImg.src = url;
+            document.getElementById('billHeaderImagePreview').classList.remove('hidden');
+            alert('Bill header image saved!');
+        } else {
+            alert('Failed to save. Please try again.');
+        }
+    } catch (e) {
+        alert('Server error: ' + e.message);
+    }
+}
+
+async function handleBillHeaderImageUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { alert('Please select an image file'); return; }
+    const statusEl = document.getElementById('billHeaderUploadStatus');
+    statusEl.textContent = 'Uploading…';
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', window.cloudinaryUploadPreset || 'travel_unsigned');
+        formData.append('folder', 'bill_headers');
+        const cloudName = window.cloudinaryCloudName || 'dfw1w02tb';
+        const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: formData });
+        const data = await uploadRes.json();
+        if (data.secure_url) {
+            document.getElementById('billHeaderImageUrl').value = data.secure_url;
+            statusEl.textContent = 'Uploaded! Click "Save Image" to apply.';
+        } else {
+            statusEl.textContent = 'Upload failed.';
+        }
+    } catch (e) {
+        statusEl.textContent = 'Upload error: ' + e.message;
     }
 }
 
@@ -2540,9 +2669,15 @@ function editBill(billId) {
 }
 
 // View bill (for printing/preview)
-function viewBill(billId) {
+async function viewBill(billId) {
     const bill = allBills.find(b => b._id === billId);
     if (!bill) return;
+
+    // Ensure homeSettings (including billHeaderImage) is loaded
+    try {
+        const settingsRes = await fetch(`${API_URL}/settings`);
+        if (settingsRes.ok) homeSettings = await settingsRes.json();
+    } catch (e) { /* use defaults */ }
 
     const formatDateIN = (dateValue) => {
         if (!dateValue) return '';
@@ -2778,30 +2913,7 @@ function viewBill(billId) {
         </head>
         <body>
             <!-- Company Header -->
-            <div class="company-header">
-                <div class="company-left">
-                    <div class="company-info">
-                        <strong>Prop:</strong> P. Kiran Kumar
-                    </div>
-                    <img src="${assetBaseUrl}/assets/logo.jpeg" alt="Logo" class="company-logo">
-                </div>
-                
-                <div class="company-center">
-                    <img src="${assetBaseUrl}/assets/logo2.jpeg" alt="PAVANKRISHNA TRAVELS - Psquare Holidays" class="company-center-logo">
-                    <div class="company-info">
-                        Shop No. 3-3-158/1, Enugulagadda,<br>
-                        Chowrastha, HANAMKONDA
-                    </div>
-                </div>
-                
-                <div class="company-right">
-                    <div class="contact-numbers">
-                        <div>Cell: 98494 58582</div>
-                        <div>98499 44429</div>
-                        <div>98496 58850</div>
-                    </div>
-                </div>
-            </div>
+            <div style="text-align:center;margin-bottom:6px;"><img src="${assetBaseUrl}/assets/hi.png" alt="Bill Header" style="width:100%;height:90px;object-fit:fill;display:block;"></div>
             <div class="company-sep"></div>
             <div class="company-sep"></div>
             
@@ -2916,7 +3028,7 @@ function viewBill(billId) {
             
             <!-- Footer -->
             <div class="footer">
-                <p><strong>Thank you for choosing PAVANKRISHNA TRAVELS!</strong></p>
+                <p><strong>Thank you for choosing BHARATH TRAVELS!</strong></p>
                 <p>For any queries, please contact us at the numbers mentioned above.</p>
             </div>
             
@@ -3381,9 +3493,15 @@ function editTourBill(billId) {
 }
 
 // View tour bill (print preview — 100% match with PDF)
-function viewTourBill(billId) {
+async function viewTourBill(billId) {
     const bill = allTourBills.find(b => b._id === billId);
     if (!bill) return;
+
+    // Ensure homeSettings (including billHeaderImage) is loaded
+    try {
+        const settingsRes = await fetch(`${API_URL}/settings`);
+        if (settingsRes.ok) homeSettings = await settingsRes.json();
+    } catch (e) { /* use defaults */ }
 
     const formatDateIN = (dateValue) => {
         if (!dateValue) return '';
@@ -3457,19 +3575,7 @@ function viewTourBill(billId) {
             .footer { text-align:center; margin-top:15px; padding-top:10px; border-top:2px solid #ddd; font-size:10px; color:#666; }
             @media print { body { padding:15px 20px; font-size:11px; } @page { size:A4; margin:10mm; } }
         </style></head><body>
-            <div class="company-header">
-                <div class="company-left">
-                    <div class="company-info"><strong>Prop:</strong> P. Kiran Kumar</div>
-                    <img src="${assetBaseUrl}/assets/logo.jpeg" alt="Logo" class="company-logo">
-                </div>
-                <div class="company-center">
-                    <img src="${assetBaseUrl}/assets/logo2.jpeg" alt="PAVANKRISHNA TRAVELS" class="company-center-logo">
-                    <div class="company-info">Shop No. 3-3-158/1, Enugulagadda,<br>Chowrastha, HANAMKONDA</div>
-                </div>
-                <div class="company-right">
-                    <div class="contact-numbers"><div>Cell: 98494 58582</div><div>98499 44429</div><div>98496 58850</div></div>
-                </div>
-            </div>
+            <div style="text-align:center;margin-bottom:6px;"><img src="${assetBaseUrl}/assets/hi.png" alt="Bill Header" style="width:100%;height:90px;object-fit:fill;display:block;"></div>
             <div class="company-sep"></div><div class="company-sep"></div>
 
             <div class="bill-header"><h2>${isPaidInFull ? 'TOUR RECEIPT & INVOICE' : 'TOUR BILL'}</h2>
@@ -3523,7 +3629,7 @@ function viewTourBill(billId) {
             ${bill.routeDetails ? `<div class="section"><div class="section-title">Route Details / Remarks</div><div class="field-value">${bill.routeDetails}</div></div>` : ''}
 
             <div class="footer">
-                <p><strong>Thank you for choosing PAVANKRISHNA TRAVELS!</strong></p>
+                <p><strong>Thank you for choosing BHARATH TRAVELS!</strong></p>
                 <p>For any queries, please contact us at the numbers mentioned above.</p>
             </div>
             <script>window.onload = function() { setTimeout(() => window.print(), 500); }</script>
